@@ -2,3 +2,4 @@ SOAP
 *.png
 *.hdf5
 *.properties
+.DS_Store
