@@ -1,4 +1,7 @@
 SOAP
+snapshots
+cosma_files
+plots
 *.png
 *.hdf5
 *.properties
