@@ -1,18 +1,25 @@
 # Script to produce selection plots for COLIBRE galaxies in a given snapshot. Galaxies are selected according to M_star, DeltaMS, and kappa_corot
 # JG McGregor
-# March 2025 
+# April 2025 
 
+import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors
 import unyt
 import swiftsimio as sw
+from swiftgalaxy import SWIFTGalaxy, SOAP
+from swiftsimio.visualisation.projection import project_gas, project_pixel_grid
+from swiftsimio.visualisation import generate_smoothing_lengths
+from scipy.spatial.transform import Rotation
 
 parser = argparse.ArgumentParser()
-parser.add_argument("device", help="local or cosma")
+parser.add_argument("device", help="local, cosma, or hyades")
 parser.add_argument("length", help="length, LXXX")
 parser.add_argument("mres", help="mass res, mX")
 parser.add_argument("snap", help="4-digit snapshot number")
+parser.add_argument("image", help="zero, one, or all")
 args = parser.parse_args()
 
 device = args.device
@@ -20,11 +27,15 @@ length = args.length
 mres = args.mres
 snap = args.snap
 run = length+"_"+mres
+run_hyades = length+mres
+image = args.image
 
 if device == "local":
     filename = "cosma_files/"+run+"/THERMAL_AGN_"+mres+"/SOAP/halo_properties_"+snap+".hdf5"
 elif device == "cosma":
     filename = "/cosma8/data/dp004/colibre/Runs/"+run+"/THERMAL_AGN_"+mres+"/SOAP/halo_properties_"+snap+".hdf5"
+elif device == "hyades":
+    filename = "/mnt/su3-pro/colibre/"+run_hyades+"/THERMAL_AGN/SOAP/halo_properties_"+snap+".hdf5"
 else:
     print("device not recognised")
     exit()
@@ -32,6 +43,9 @@ else:
 
 catalogue = sw.load(filename)
 meta = catalogue.metadata
+
+boxsize=meta.boxsize[0]
+centre=boxsize/2.0 # lets me do some basic recentring
 
 z=meta.redshift
 z_short = round(z,3)
@@ -46,8 +60,10 @@ SFR = catalogue.exclusive_sphere_30kpc.star_formation_rate
 kappa_corot = catalogue.exclusive_sphere_30kpc.kappa_corot_stars
 disk_fraction = catalogue.exclusive_sphere_30kpc.disc_to_total_stellar_mass_fraction
 Mgas = catalogue.exclusive_sphere_30kpc.gas_mass
+Mmolgas = catalogue.exclusive_sphere_30kpc.molecular_hydrogen_mass
 gas_fraction = Mgas/(Mstar+Mgas)
 mu_gas = Mgas/Mstar
+mu_molgas = Mmolgas/Mstar
 
 # based on Popesso+23
 SFMS_masses = np.logspace(8.5,11.5,100) * unyt.Msun
@@ -79,8 +95,8 @@ kappa_lo=0
 kappa_hi=1
 gasfrac_lo=1e-2
 gasfrac_hi=1e0
-mugas_lo=1e-3
-mugas_hi=1e2
+mumolgas_lo=1e-3
+mumolgas_hi=1e1
 
 unyt.matplotlib_support.label_style = '[]'
 with unyt.matplotlib_support:
@@ -89,7 +105,6 @@ with unyt.matplotlib_support:
 
     ax.scatter(Mstar[softselection],SFR[softselection], xunits='Msun',yunits='Msun/Gyr',c='k')
     ax.scatter(Mstar[selection],SFR[selection], xunits='Msun',yunits='Msun/Gyr',c='r')
-    #ax.scatter(Mstar[target],SFR[target], xunits='Msun',yunits='Msun/Gyr',c='b',marker='*',s=200)
     ax.plot(SFMS_masses,SFMS_SFRs,'k')
     ax.plot(SFMS_masses,SFMS_SFRs*10**dMScut,'r--')
     ax.vlines(x=masscut,ymin=SFR_lo,ymax=SFR_hi,colors='r',linestyles='--')
@@ -100,6 +115,12 @@ with unyt.matplotlib_support:
     ax.set_ylim(SFR_lo,SFR_hi)
     ax.set_ylabel(r'SFR [M$_\odot$/Gyr]')
     ax.set_title('z='+str(z_short))
+
+    if image=="one":
+        candidates = np.argwhere(selection) # finding the ID of our galaxies
+        if len(candidates) > 0:
+            target = candidates[0][0]
+            ax.scatter(Mstar[target],SFR[target], xunits='Msun',yunits='Msun/Gyr',c='b',marker='*',s=200)
 
     imgname = 'plots/selection_plots/SFMS_' + str(run) + 'z' + str(z_short) + '.png'
 
@@ -114,7 +135,6 @@ with unyt.matplotlib_support:
 
     ax1.scatter(Mstar[softselection],deltaMS[softselection], xunits='Msun',c='k')
     ax1.scatter(Mstar[selection],deltaMS[selection], xunits='Msun',c='r')
-    #ax1.scatter(Mstar[target],deltaMS[target], xunits='Msun',c='b',marker='*',s=200)
     ax1.vlines(x=masscut,ymin=dMS_lo,ymax=dMS_hi,colors='r',linestyles='--')
     ax1.hlines(y=dMScut,xmin=mass_lo,xmax=mass_hi,colors='r',linestyles='--')
     ax1.set_xscale('log')
@@ -131,7 +151,6 @@ with unyt.matplotlib_support:
 
     ax4.scatter(Mstar[softselection],kappa_corot[softselection], xunits='Msun',c='k')
     ax4.scatter(Mstar[selection],kappa_corot[selection], xunits='Msun',c='r')
-    #ax4.scatter(Mstar[target],kappa_corot[target], xunits='Msun',c='b',marker='*',s=200)
     ax4.vlines(x=masscut,ymin=kappa_lo,ymax=kappa_hi,colors='r',linestyles='--')
     ax4.hlines(y=kappacut,xmin=mass_lo,xmax=mass_hi,colors='r',linestyles='--')
     ax4.set_xscale('log')
@@ -143,7 +162,6 @@ with unyt.matplotlib_support:
 
     ax5.scatter(deltaMS[softselection],kappa_corot[softselection],c='k')
     ax5.scatter(deltaMS[selection],kappa_corot[selection],c='r')
-    #ax5.scatter(deltaMS[target],kappa_corot[target],c='b',marker='*',s=200)
     ax5.hlines(y=kappacut,xmin=dMS_lo,xmax=dMS_hi,colors='r',linestyles='--')
     ax5.vlines(x=dMScut,ymin=kappa_lo,ymax=kappa_hi,colors='r',linestyles='--')
     ax5.set_xlim(dMS_lo,dMS_hi)
@@ -155,38 +173,46 @@ with unyt.matplotlib_support:
 
     ax6.set_axis_off()
 
-    ax7.scatter(Mstar[softselection],mu_gas[softselection], xunits='Msun',c='k')
-    ax7.scatter(Mstar[selection],mu_gas[selection], xunits='Msun',c='r')
-    #ax7.scatter(Mstar[target],mu_gas[target], xunits='Msun',c='b',marker='*',s=200)
-    ax7.vlines(x=masscut,ymin=mugas_lo,ymax=mugas_hi,colors='r',linestyles='--')
+    ax7.scatter(Mstar[softselection],mu_molgas[softselection], xunits='Msun',c='k')
+    ax7.scatter(Mstar[selection],mu_molgas[selection], xunits='Msun',c='r')
+    ax7.vlines(x=masscut,ymin=mumolgas_lo,ymax=mumolgas_hi,colors='r',linestyles='--')
     ax7.set_xscale('log')
     ax7.set_xlim(mass_lo,mass_hi)
     ax7.set_xlabel(r'$M_*$ [M$_\odot$]')
     ax7.set_yscale('log')
-    ax7.set_ylim(mugas_lo,mugas_hi)
-    ax7.set_ylabel(r'$M_{gas} / M_*$')
+    ax7.set_ylim(mumolgas_lo,mumolgas_hi)
+    ax7.set_ylabel(r'$M_{molgas} / M_*$')
 
-    ax8.scatter(deltaMS[softselection],mu_gas[softselection],c='k')
-    ax8.scatter(deltaMS[selection],mu_gas[selection],c='r')
-    #ax8.scatter(deltaMS[target],mu_gas[target],c='b',marker='*',s=200)
-    ax8.vlines(x=dMScut,ymin=mugas_lo,ymax=mugas_hi,colors='r',linestyles='--')
+    ax8.scatter(deltaMS[softselection],mu_molgas[softselection],c='k')
+    ax8.scatter(deltaMS[selection],mu_molgas[selection],c='r')
+    ax8.vlines(x=dMScut,ymin=mumolgas_lo,ymax=mumolgas_hi,colors='r',linestyles='--')
     ax8.set_xlim(dMS_lo,dMS_hi)
     ax8.set_xlabel(r'$\Delta$MS [dex]')
     ax8.set_yscale('log')
-    ax8.set_ylim(mugas_lo,mugas_hi)
+    ax8.set_ylim(mumolgas_lo,mumolgas_hi)
     ax8.set_ylabel('')
     #ax8.set_ylabel(r'$M_{gas} / M_*$')
 
-    ax9.scatter(kappa_corot[softselection],mu_gas[softselection],c='k')
-    ax9.scatter(kappa_corot[selection],mu_gas[selection],c='r')
-    #ax9.scatter(kappa_corot[target],mu_gas[target],c='b',marker='*',s=200)
-    ax9.vlines(x=kappacut,ymin=mugas_lo,ymax=mugas_hi,colors='r',linestyles='--')
+    ax9.scatter(kappa_corot[softselection],mu_molgas[softselection],c='k')
+    ax9.scatter(kappa_corot[selection],mu_molgas[selection],c='r')
+    ax9.vlines(x=kappacut,ymin=mumolgas_lo,ymax=mumolgas_hi,colors='r',linestyles='--')
     ax9.set_xlim(kappa_lo,kappa_hi)
     ax9.set_xlabel(r'$\kappa_{corot,*}$')
     ax9.set_yscale('log')
-    ax9.set_ylim(mugas_lo,mugas_hi)
+    ax9.set_ylim(mumolgas_lo,mumolgas_hi)
     ax9.set_ylabel('')
     #ax9.set_ylabel(r'$M_{gas} / M_*$')
+
+    if image=="one":
+        candidates = np.argwhere(selection) # finding the ID of our galaxies
+        if len(candidates) > 0:
+            target = candidates[0][0]
+            ax1.scatter(Mstar[target],deltaMS[target], xunits='Msun',c='b',marker='*',s=200)
+            ax4.scatter(Mstar[target],kappa_corot[target], xunits='Msun',c='b',marker='*',s=200)
+            ax5.scatter(deltaMS[target],kappa_corot[target],c='b',marker='*',s=200)
+            ax7.scatter(Mstar[target],mu_molgas[target], xunits='Msun',c='b',marker='*',s=200)
+            ax8.scatter(deltaMS[target],mu_molgas[target],c='b',marker='*',s=200)
+            ax9.scatter(kappa_corot[target],mu_molgas[target],c='b',marker='*',s=200)
 
     plt.subplots_adjust(wspace=0.1,hspace=0.1)
     
@@ -196,3 +222,181 @@ with unyt.matplotlib_support:
 
 
 
+if (image == "one") or (image == "all"):
+    candidates = np.argwhere(selection)   #finding the ID of our galaxies
+    if len(candidates)==0:
+        print("no galaxies selected")
+        exit()
+    if image == "one":
+        target = candidates[0]   #list containing one galaxy ID
+    elif image == "all":
+        target = [candidates[i][0] for i in range(len(candidates))]   #list containing multiple IDs
+    
+
+    if device=="cosma":
+        colibre_base_path = "/cosma8/data/dp004/colibre/Runs"
+        simulation_dir = run+"/THERMAL_AGN_"+mres
+    elif device=="hyades":
+        colibre_base_path = "/mnt/su3-pro/colibre/"
+        simulation_dir = run_hyades+"/THERMAL_AGN"
+
+    soap_path = "SOAP/halo_properties_"+snap+".hdf5"
+    soap_catalogue_file = os.path.join(colibre_base_path, simulation_dir, soap_path)
+    virtual_snapshot_path = "SOAP/colibre_with_SOAP_membership_"+snap+".hdf5"
+    virtual_snapshot_file = os.path.join(colibre_base_path, simulation_dir, virtual_snapshot_path)
+
+
+    for ID in target:
+        sg = SWIFTGalaxy(
+            virtual_snapshot_file,
+            SOAP(
+                soap_catalogue_file,
+                soap_index=ID
+            ),
+        )
+
+        if not hasattr(sg.dark_matter, "smoothing_lengths"):
+            sg.dark_matter.smoothing_lengths = generate_smoothing_lengths(
+                    (sg.dark_matter.coordinates + sg.centre) % sg.metadata.boxsize,
+                    sg.metadata.boxsize,
+                    kernel_gamma=1.8,
+                    neighbours=57,
+                    speedup_fac=2,
+                    dimension=3,
+            )
+
+        disc_radius = 15.0 #kpc
+        halo_radius = 200.0 #kpc
+
+
+        disc_region = sw.objects.cosmo_array(
+                [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
+                unyt.kpc,
+                comoving=False,
+                scale_factor=sg.metadata.a,
+                scale_exponent=1,
+        )
+
+        halo_region = sw.objects.cosmo_array(
+                [-1*halo_radius, halo_radius, -1*halo_radius, halo_radius],
+                unyt.kpc,
+                comoving=False,
+                scale_factor=sg.metadata.a,
+                scale_exponent=1,
+        )
+
+        # unrotated
+        gas_map = project_gas(
+                sg,
+                resolution=256,
+                project="masses",
+                parallel=True,
+                region=disc_region,
+        )
+        gas_map.convert_to_units(unyt.msun / unyt.kpc**2)
+        star_map = project_pixel_grid(
+                data=sg.stars,
+                resolution=256,
+                project="masses",
+                parallel=True,
+                region=disc_region,
+        )
+        star_map.convert_to_units(unyt.msun / unyt.kpc**2)
+
+        fig,ax = plt.subplots(1,1,figsize=(8,6))
+        mp = ax.imshow(np.log10(gas_map.value), cmap="viridis", extent=disc_region)
+        cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas.png'
+        plt.savefig(imgname, bbox_inches='tight')
+
+        fig,ax = plt.subplots(1,1,figsize=(8,6))
+        mp = ax.imshow(np.log10(star_map.value), cmap="magma", extent=disc_region)
+        cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star.png'
+        plt.savefig(imgname, bbox_inches='tight')
+
+        #gas_coord = sg.gas.coordinates
+        #fig,ax = plt.subplots(figsize=(6,6))
+        #ax.scatter(gas_coord[:,0],gas_coord[:,1],s=0.1,c='k')
+        #imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gastest.png'
+        #plt.savefig(imgname, bbox_inches='tight')
+
+        #stars_coord = sg.stars.coordinates
+        #fig,ax = plt.subplots(figsize=(6,6))
+        #ax.scatter(stars_coord[:,0],stars_coord[:,1],s=0.1,c='k')
+        #imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'startest.png'
+        #plt.savefig(imgname, bbox_inches='tight')
+
+
+
+        Lstars = sg.halo_catalogue.exclusive_sphere_30kpc.angular_momentum_stars.squeeze()
+        zhat = (Lstars / np.sqrt(np.sum(Lstars**2))).to_value(
+            unyt.dimensionless
+        )  # we'll align L with the z-axis
+        arb = np.ones(3) / np.sqrt(
+            3
+        )  # we have one degree of freedom, we'll fix it by projecting onto an arbitrarily chosen vector
+        xvec = arb - arb.dot(zhat) * zhat
+        xhat = xvec / np.sum(xvec**2)
+        yhat = np.cross(zhat, xhat)  # orthogonal, right-handed and normalized
+        rotmat = np.vstack((xhat, yhat, zhat))
+        sg.rotate(Rotation.from_matrix(rotmat)) # hopefully this puts the galaxy face-on
+
+        gas_map = project_gas(
+                sg,
+                resolution=256,
+                project="masses",
+                parallel=True,
+                region=disc_region,
+        )
+        gas_map.convert_to_units(unyt.msun / unyt.kpc**2)
+
+        star_map = project_pixel_grid(
+                data=sg.stars,
+                resolution=256,
+                project="masses",
+                parallel=True,
+                region=disc_region,
+        )
+        star_map.convert_to_units(unyt.msun / unyt.kpc**2)
+
+        fig,ax = plt.subplots(1,1,figsize=(8,6))
+        mp = ax.imshow(np.log10(gas_map.value), cmap="viridis", extent=disc_region)
+        cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas_fo.png'
+        plt.savefig(imgname, bbox_inches='tight')
+
+        fig,ax = plt.subplots(1,1,figsize=(8,6))
+        mp = ax.imshow(np.log10(star_map.value), cmap="magma", extent=disc_region)
+        cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star_fo.png'
+        plt.savefig(imgname, bbox_inches='tight')
+
+        gas_coord = sg.gas.coordinates
+        stars_coord = sg.stars.coordinates
+        xmed = np.median(stars_coord[:,0])
+        ymed = np.median(stars_coord[:,1])
+        zmed = np.median(stars_coord[:,2])
+        gas_x = (gas_coord[:,0] - xmed + centre)%(boxsize)
+        gas_y = (gas_coord[:,1] - ymed + centre)%(boxsize)
+        gas_z = (gas_coord[:,2] - zmed + centre)%(boxsize)
+        stars_x = (stars_coord[:,0] - xmed + centre)%(boxsize)
+        stars_y = (stars_coord[:,1] - ymed + centre)%(boxsize)
+        stars_z = (stars_coord[:,2] - zmed + centre)%(boxsize)
+        xcen = np.mean(stars_x)
+        ycen = np.mean(stars_y)
+        zcen = np.mean(stars_z)
+
+        fig,ax = plt.subplots(figsize=(6,6))
+        ax.scatter(gas_x,gas_y,s=0.1,c='k')
+        ax.set_xlim(xcen-30*unyt.kpc,xcen+30*unyt.kpc)
+        ax.set_ylim(ycen-30*unyt.kpc,ycen+30*unyt.kpc)
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gastest_fo.png'
+        plt.savefig(imgname, bbox_inches='tight')
+
+        fig,ax = plt.subplots(figsize=(6,6))
+        ax.scatter(stars_x,stars_y,s=0.1,c='k')
+        ax.set_xlim(xcen-15*unyt.kpc,xcen+15*unyt.kpc)
+        ax.set_ylim(ycen-15*unyt.kpc,ycen+15*unyt.kpc)
+        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'startest_fo.png'
+        plt.savefig(imgname, bbox_inches='tight')
