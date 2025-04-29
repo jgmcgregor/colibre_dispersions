@@ -265,25 +265,19 @@ if (image == "one") or (image == "all"):
                     dimension=3,
             )
 
-        disc_radius = 15.0 #kpc
-        halo_radius = 200.0 #kpc
-
-
+        disc_radius = 15.0*unyt.kpc
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-                unyt.kpc,
                 comoving=False,
                 scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
 
-        halo_region = sw.objects.cosmo_array(
-                [-1*halo_radius, halo_radius, -1*halo_radius, halo_radius],
-                unyt.kpc,
-                comoving=False,
-                scale_factor=sg.metadata.a,
-                scale_exponent=1,
-        )
+        # min and max log gas and star densities (for plotting purposes)
+        gmin = 4.5
+        gmax = 9
+        smin = 4.5
+        smax = 9
 
         # unrotated
         gas_map = project_gas(
@@ -291,45 +285,53 @@ if (image == "one") or (image == "all"):
                 resolution=256,
                 project="masses",
                 parallel=True,
+                periodic=False,
                 region=disc_region,
         )
-        gas_map.convert_to_units(unyt.msun / unyt.kpc**2)
         star_map = project_pixel_grid(
                 data=sg.stars,
                 resolution=256,
                 project="masses",
                 parallel=True,
+                periodic=False,
                 region=disc_region,
         )
-        star_map.convert_to_units(unyt.msun / unyt.kpc**2)
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        mp = ax.imshow(np.log10(gas_map.value), cmap="viridis", extent=disc_region)
+        mp = ax.imshow(
+            np.log10(gas_map.to_value(unyt.solMass / unyt.kpc**2).T),
+            cmap="viridis",
+            extent=disc_region,
+            origin="lower",
+            vmin=gmin,
+            vmax=gmax,
+        )
+        ax.set_xlabel(f"x' [{disc_radius.units}]")
+        ax.set_ylabel(f"y' [{disc_radius.units}]")
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas.png'
         plt.savefig(imgname, bbox_inches='tight')
 
+
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        mp = ax.imshow(np.log10(star_map.value), cmap="magma", extent=disc_region)
+        mp = ax.imshow(
+            np.log10(star_map.to_value(unyt.solMass / unyt.kpc**2).T),
+            cmap="magma",
+            extent=disc_region,
+            origin="lower",
+            vmin=smin,
+            vmax=smax,
+        )
+        ax.set_xlabel(f"x' [{disc_radius.units}]")
+        ax.set_ylabel(f"y' [{disc_radius.units}]")
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star.png'
         plt.savefig(imgname, bbox_inches='tight')
 
-        #gas_coord = sg.gas.coordinates
-        #fig,ax = plt.subplots(figsize=(6,6))
-        #ax.scatter(gas_coord[:,0],gas_coord[:,1],s=0.1,c='k')
-        #imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gastest.png'
-        #plt.savefig(imgname, bbox_inches='tight')
-
-        #stars_coord = sg.stars.coordinates
-        #fig,ax = plt.subplots(figsize=(6,6))
-        #ax.scatter(stars_coord[:,0],stars_coord[:,1],s=0.1,c='k')
-        #imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'startest.png'
-        #plt.savefig(imgname, bbox_inches='tight')
 
 
-
-        Lstars = sg.halo_catalogue.exclusive_sphere_30kpc.angular_momentum_stars.squeeze()
+        # moving to face-on with stellar angular momentum (see SG Colibre quickstart)
+        Lstars = sg.halo_catalogue.exclusive_sphere_30kpc.angular_momentum_stars.squeeze() #10kpc, 30kpc?
         zhat = (Lstars / np.sqrt(np.sum(Lstars**2))).to_value(
             unyt.dimensionless
         )  # we'll align L with the z-axis
@@ -342,61 +344,75 @@ if (image == "one") or (image == "all"):
         rotmat = np.vstack((xhat, yhat, zhat))
         sg.rotate(Rotation.from_matrix(rotmat)) # hopefully this puts the galaxy face-on
 
+        
+        disc_radius = 15.0*unyt.kpc
+        disc_region = sw.objects.cosmo_array(
+                [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
+                comoving=False,
+                scale_factor=sg.metadata.a,
+                scale_exponent=1,
+        )
+
+        # unrotated
         gas_map = project_gas(
                 sg,
                 resolution=256,
                 project="masses",
                 parallel=True,
+                periodic=False,
                 region=disc_region,
         )
-        gas_map.convert_to_units(unyt.msun / unyt.kpc**2)
-
         star_map = project_pixel_grid(
                 data=sg.stars,
                 resolution=256,
                 project="masses",
                 parallel=True,
+                periodic=False,
                 region=disc_region,
         )
-        star_map.convert_to_units(unyt.msun / unyt.kpc**2)
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        mp = ax.imshow(np.log10(gas_map.value), cmap="viridis", extent=disc_region)
+        mp = ax.imshow(
+            np.log10(gas_map.to_value(unyt.solMass / unyt.kpc**2).T),
+            cmap="viridis",
+            extent=disc_region,
+            origin="lower",
+            vmin=gmin,
+            vmax=gmax,
+        )
+        ax.set_xlabel(f"x' [{disc_radius.units}]")
+        ax.set_ylabel(f"y' [{disc_radius.units}]")
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas_fo.png'
         plt.savefig(imgname, bbox_inches='tight')
 
+
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        mp = ax.imshow(np.log10(star_map.value), cmap="magma", extent=disc_region)
+        mp = ax.imshow(
+            np.log10(star_map.to_value(unyt.solMass / unyt.kpc**2).T),
+            cmap="magma",
+            extent=disc_region,
+            origin="lower",
+            vmin=smin,
+            vmax=smax,
+        )
+        ax.set_xlabel(f"x' [{disc_radius.units}]")
+        ax.set_ylabel(f"y' [{disc_radius.units}]")
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star_fo.png'
         plt.savefig(imgname, bbox_inches='tight')
 
-        gas_coord = sg.gas.coordinates
-        stars_coord = sg.stars.coordinates
-        xmed = np.median(stars_coord[:,0])
-        ymed = np.median(stars_coord[:,1])
-        zmed = np.median(stars_coord[:,2])
-        gas_x = (gas_coord[:,0] - xmed + centre)%(boxsize)
-        gas_y = (gas_coord[:,1] - ymed + centre)%(boxsize)
-        gas_z = (gas_coord[:,2] - zmed + centre)%(boxsize)
-        stars_x = (stars_coord[:,0] - xmed + centre)%(boxsize)
-        stars_y = (stars_coord[:,1] - ymed + centre)%(boxsize)
-        stars_z = (stars_coord[:,2] - zmed + centre)%(boxsize)
-        xcen = np.mean(stars_x)
-        ycen = np.mean(stars_y)
-        zcen = np.mean(stars_z)
-
-        fig,ax = plt.subplots(figsize=(6,6))
-        ax.scatter(gas_x,gas_y,s=0.1,c='k')
-        ax.set_xlim(xcen-30*unyt.kpc,xcen+30*unyt.kpc)
-        ax.set_ylim(ycen-30*unyt.kpc,ycen+30*unyt.kpc)
-        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gastest_fo.png'
-        plt.savefig(imgname, bbox_inches='tight')
-
-        fig,ax = plt.subplots(figsize=(6,6))
-        ax.scatter(stars_x,stars_y,s=0.1,c='k')
-        ax.set_xlim(xcen-15*unyt.kpc,xcen+15*unyt.kpc)
-        ax.set_ylim(ycen-15*unyt.kpc,ycen+15*unyt.kpc)
-        imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'startest_fo.png'
-        plt.savefig(imgname, bbox_inches='tight')
+        #gas_coord = sg.gas.coordinates
+        #stars_coord = sg.stars.coordinates
+        #xmed = np.median(stars_coord[:,0])
+        #ymed = np.median(stars_coord[:,1])
+        #zmed = np.median(stars_coord[:,2])
+        #gas_x = (gas_coord[:,0] - xmed + centre)%(boxsize)
+        #gas_y = (gas_coord[:,1] - ymed + centre)%(boxsize)
+        #gas_z = (gas_coord[:,2] - zmed + centre)%(boxsize)
+        #stars_x = (stars_coord[:,0] - xmed + centre)%(boxsize)
+        #stars_y = (stars_coord[:,1] - ymed + centre)%(boxsize)
+        #stars_z = (stars_coord[:,2] - zmed + centre)%(boxsize)
+        #xcen = np.mean(stars_x)
+        #ycen = np.mean(stars_y)
+        #zcen = np.mean(stars_z)
