@@ -268,7 +268,7 @@ if (image == "one") or (image == "all"):
         disc_radius = 15.0*unyt.kpc
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-                comoving=False,
+                comoving=True,
                 scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
@@ -348,7 +348,7 @@ if (image == "one") or (image == "all"):
         disc_radius = 15.0*unyt.kpc
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-                comoving=False,
+                comoving=True,
                 scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
