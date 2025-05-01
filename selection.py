@@ -265,11 +265,19 @@ if (image == "one") or (image == "all"):
                     dimension=3,
             )
 
-        disc_radius = 15.0*unyt.kpc
+        #disc_radius = 15.0*unyt.kpc
+        #disc_region = sw.objects.cosmo_array(
+        #        [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
+        #        comoving=False,
+        #       scale_factor=sg.metadata.a,
+        #        scale_exponent=1,
+        #)
+
+        disc_radius = 15.0*unyt.kpc / sg.metadata.a
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
                 comoving=True,
-                scale_factor=sg.metadata.a,
+               scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
 
@@ -345,11 +353,19 @@ if (image == "one") or (image == "all"):
         sg.rotate(Rotation.from_matrix(rotmat)) # hopefully this puts the galaxy face-on
 
         
-        disc_radius = 15.0*unyt.kpc
+        #disc_radius = 15.0*unyt.kpc
+        #disc_region = sw.objects.cosmo_array(
+        #        [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
+        #        comoving=False,
+        #        scale_factor=sg.metadata.a,
+        #        scale_exponent=1,
+        #)
+
+        disc_radius = 15.0*unyt.kpc / sg.metadata.a
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
                 comoving=True,
-                scale_factor=sg.metadata.a,
+               scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
 
