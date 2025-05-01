@@ -349,7 +349,7 @@ if (image == "one") or (image == "all"):
         xvec = arb - arb.dot(zhat) * zhat
         xhat = xvec / np.sum(xvec**2)
         yhat = np.cross(zhat, xhat)  # orthogonal, right-handed and normalized
-        rotmat = np.vstack((xhat, yhat, zhat))
+        rotmat = np.vstack((xhat, yhat, zhat)).T # transpose!!!!
         sg.rotate(Rotation.from_matrix(rotmat)) # hopefully this puts the galaxy face-on
 
         
