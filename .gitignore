@@ -7,3 +7,4 @@ plots
 *.properties
 .DS_Store
 importantcommands.txt
+*.npz
