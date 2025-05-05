@@ -1,6 +1,7 @@
-# Script to produce selection plots for COLIBRE galaxies in a given snapshot. Galaxies are selected according to M_star, DeltaMS, and kappa_corot
+# Script to produce selection plots for COLIBRE galaxies in a given snapshot. Galaxies are selected according to M_star, DeltaMS, and kappa_corot.
+# Images of random selected galaxies can be produced
 # JG McGregor
-# April 2025 
+# May 2025 
 
 import os
 import argparse
@@ -30,6 +31,13 @@ run = length+"_"+mres
 run_hyades = length+mres
 image = args.image
 
+def find_nearest_idx(x,arr): # does what it says
+    diff_arr = np.absolute(arr-x)
+    index = diff_arr.argmin()
+    return index
+
+
+# hits the correct SOAP catalogues on different machines
 if device == "local":
     filename = "cosma_files/"+run+"/THERMAL_AGN_"+mres+"/SOAP/halo_properties_"+snap+".hdf5"
 elif device == "cosma":
@@ -40,19 +48,10 @@ else:
     print("device not recognised")
     exit()
 
-
 catalogue = sw.load(filename)
 meta = catalogue.metadata
-
-boxsize=meta.boxsize[0]
-centre=boxsize/2.0 # lets me do some basic recentring
-
 z=meta.redshift
-z_short = round(z,3)
-
-# universe age provided in inverse Hubble constant units
-t = meta.cosmology_raw['Universe age [internal units]'][0] * unyt.Mpc * unyt.s / unyt.km
-t.convert_to_units(unyt.Gyr)
+z_short = round(z,3) # used for file naming
 
 # uses 30kpc spheres, not entire subhalo
 Mstar = catalogue.exclusive_sphere_30kpc.stellar_mass
@@ -61,29 +60,50 @@ kappa_corot = catalogue.exclusive_sphere_30kpc.kappa_corot_stars
 disk_fraction = catalogue.exclusive_sphere_30kpc.disc_to_total_stellar_mass_fraction
 Mgas = catalogue.exclusive_sphere_30kpc.gas_mass
 Mmolgas = catalogue.exclusive_sphere_30kpc.molecular_hydrogen_mass
-gas_fraction = Mgas/(Mstar+Mgas)
-mu_gas = Mgas/Mstar
 mu_molgas = Mmolgas/Mstar
 
 # based on Popesso+23
 SFMS_masses = np.logspace(8.5,11.5,100) * unyt.Msun
-m = np.log10(SFMS_masses/unyt.Msun) + 0.025
-tdim = t/unyt.Gyr
-MSMZ = (-0.034*tdim+4.722)*m - 0.1925*m**2 + (0.2*tdim-26.16)
-SFMS_SFRs = 10**MSMZ * (unyt.Msun/unyt.yr)
+#m = np.log10(SFMS_masses/unyt.Msun) + 0.025
+#tdim = t/unyt.Gyr
+#MSMZ = (-0.034*tdim+4.722)*m - 0.1925*m**2 + (0.2*tdim-26.16)
+#SFMS_SFRs = 10**MSMZ * (unyt.Msun/unyt.yr)
+
+data = np.load("./COLIBRE_SFMS_m6res.npz") # contains Evgenii's SFMS, at integer redshifts
+logSFR = data["log10_SFR_Msun_yr"]
+logMstar = data["log10_Mstar_Msun"]
+redshifts = data["redshifts"]
+
+zidx = find_nearest_idx(z,redshifts)
+zSFMS = logSFR[:,zidx] # grab SFMS at appropriate redshift
+valid = np.isfinite(zSFMS) # only fit non-nan data points
+
+a,b,c = np.polyfit(logMstar[valid],zSFMS[valid],deg=2)
+def evg_SFMS(mstar):
+    lgmstar = np.log10(mstar/unyt.Msun)
+    lgSFR = a*lgmstar**2 + b*lgmstar + c
+    evg_SFR = 10**lgSFR * (unyt.Msun/unyt.yr)
+    return(evg_SFR)
+SFMS_SFRs = evg_SFMS(SFMS_masses)
 
 # can adjust galaxy selection here
 masscut = 10**9.5 * unyt.Msun
 softmasscut = 10**8.5 * unyt.Msun # galaxies below this don't have an accurate SFMS
-dMScut = -0.3 # based on scatter from Popesso+23
-kappacut = 0.4
+dMScut = -0.3 # based on typical SFMS scatter
+kappacut = 0.4 # based on Correa17
 
-m = np.log10(Mstar/unyt.Msun) + 0.025
-SFR_MS = 10**((-0.034*tdim+4.722)*m - 0.1925*m**2 + (0.2*tdim-26.16)) * (unyt.Msun/unyt.yr) # bestfit from Popesso+23
+#m = np.log10(Mstar/unyt.Msun) + 0.025
+#SFR_MS = 10**((-0.034*tdim+4.722)*m - 0.1925*m**2 + (0.2*tdim-26.16)) * (unyt.Msun/unyt.yr) # bestfit from Popesso+23
+
+SFR_MS = evg_SFMS(Mstar) # expected SFMS for a MS galaxy of this size
 deltaMS = np.log10(SFR/SFR_MS)
 
-selection = (Mstar>masscut) & (deltaMS>dMScut) & (kappa_corot>kappacut)
-softselection = Mstar>softmasscut
+selection = (Mstar>masscut) & (deltaMS>dMScut) & (kappa_corot>kappacut) # my selected galaxies
+softselection = Mstar>softmasscut # for plotting purposes - only galaxies above a certain mass are plotted
+
+candidates = np.argwhere(selection)
+tablename = 'tables/targets_' + str(run) + '_z' + str(z_short)
+np.save(tablename, candidates) # saves target IDs to a .npy file, to be dealt with later...
 
 mass_lo=1e8
 mass_hi=1e12
@@ -231,6 +251,8 @@ if (image == "one") or (image == "all"):
         target = candidates[0]   #list containing one galaxy ID
     elif image == "all":
         target = [candidates[i][0] for i in range(len(candidates))]   #list containing multiple IDs
+        print("image=all not yet tested, exiting")
+        exit()
     
 
     if device=="cosma":
@@ -255,29 +277,19 @@ if (image == "one") or (image == "all"):
             ),
         )
 
-        if not hasattr(sg.dark_matter, "smoothing_lengths"):
-            sg.dark_matter.smoothing_lengths = generate_smoothing_lengths(
-                    (sg.dark_matter.coordinates + sg.centre) % sg.metadata.boxsize,
-                    sg.metadata.boxsize,
-                    kernel_gamma=1.8,
-                    neighbours=57,
-                    speedup_fac=2,
-                    dimension=3,
-            )
+        sg.gas.masses.convert_to_physical()
+        sg.gas.coordinates.convert_to_physical()
+        sg.gas.smoothing_lengths.convert_to_physical()
 
-        #disc_radius = 15.0*unyt.kpc
-        #disc_region = sw.objects.cosmo_array(
-        #        [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-        #        comoving=False,
-        #       scale_factor=sg.metadata.a,
-        #        scale_exponent=1,
-        #)
+        sg.stars.masses.convert_to_physical()
+        sg.stars.coordinates.convert_to_physical()
+        sg.stars.smoothing_lengths.convert_to_physical()
 
-        disc_radius = 15.0*unyt.kpc / sg.metadata.a
+        disc_radius = 15.0*unyt.kpc
         disc_region = sw.objects.cosmo_array(
                 [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-                comoving=True,
-               scale_factor=sg.metadata.a,
+                comoving=False,
+                scale_factor=sg.metadata.a,
                 scale_exponent=1,
         )
 
@@ -340,6 +352,7 @@ if (image == "one") or (image == "all"):
 
         # moving to face-on with stellar angular momentum (see SG Colibre quickstart)
         Lstars = sg.halo_catalogue.exclusive_sphere_30kpc.angular_momentum_stars.squeeze() #10kpc, 30kpc?
+        Lstars.convert_to_physical()
         zhat = (Lstars / np.sqrt(np.sum(Lstars**2))).to_value(
             unyt.dimensionless
         )  # we'll align L with the z-axis
@@ -352,24 +365,7 @@ if (image == "one") or (image == "all"):
         rotmat = np.vstack((xhat, yhat, zhat)).T # transpose!!!!
         sg.rotate(Rotation.from_matrix(rotmat)) # hopefully this puts the galaxy face-on
 
-        
-        #disc_radius = 15.0*unyt.kpc
-        #disc_region = sw.objects.cosmo_array(
-        #        [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-        #        comoving=False,
-        #        scale_factor=sg.metadata.a,
-        #        scale_exponent=1,
-        #)
-
-        disc_radius = 15.0*unyt.kpc / sg.metadata.a
-        disc_region = sw.objects.cosmo_array(
-                [-1*disc_radius, disc_radius, -1*disc_radius, disc_radius],
-                comoving=True,
-               scale_factor=sg.metadata.a,
-                scale_exponent=1,
-        )
-
-        # unrotated
+        # rotated
         gas_map = project_gas(
                 sg,
                 resolution=256,
@@ -417,18 +413,3 @@ if (image == "one") or (image == "all"):
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star_fo.png'
         plt.savefig(imgname, bbox_inches='tight')
-
-        #gas_coord = sg.gas.coordinates
-        #stars_coord = sg.stars.coordinates
-        #xmed = np.median(stars_coord[:,0])
-        #ymed = np.median(stars_coord[:,1])
-        #zmed = np.median(stars_coord[:,2])
-        #gas_x = (gas_coord[:,0] - xmed + centre)%(boxsize)
-        #gas_y = (gas_coord[:,1] - ymed + centre)%(boxsize)
-        #gas_z = (gas_coord[:,2] - zmed + centre)%(boxsize)
-        #stars_x = (stars_coord[:,0] - xmed + centre)%(boxsize)
-        #stars_y = (stars_coord[:,1] - ymed + centre)%(boxsize)
-        #stars_z = (stars_coord[:,2] - zmed + centre)%(boxsize)
-        #xcen = np.mean(stars_x)
-        #ycen = np.mean(stars_y)
-        #zcen = np.mean(stars_z)
