@@ -103,7 +103,9 @@ softselection = Mstar>softmasscut # for plotting purposes - only galaxies above 
 
 candidates = np.argwhere(selection)
 tablename = 'tables/targets_' + str(run) + '_z' + str(z_short)
+txtname = tablename + '.txt'
 np.save(tablename, candidates) # saves target IDs to a .npy file, to be dealt with later...
+np.savetxt(txtname, candidates, fmt="%d")
 
 mass_lo=1e8
 mass_hi=1e12

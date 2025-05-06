@@ -9,3 +9,7 @@ plots
 importantcommands.txt
 *.npz
 tables
+slurm_outputs
+slurm_errs
+*.out
+*.err
