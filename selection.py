@@ -61,6 +61,7 @@ disk_fraction = catalogue.exclusive_sphere_30kpc.disc_to_total_stellar_mass_frac
 Mgas = catalogue.exclusive_sphere_30kpc.gas_mass
 Mmolgas = catalogue.exclusive_sphere_30kpc.molecular_hydrogen_mass
 mu_molgas = Mmolgas/Mstar
+TrackIDs = catalogue.input_halos_hbtplus.track_id # used by the HBT-HERONS files
 
 # based on Popesso+23
 SFMS_masses = np.logspace(8.5,11.5,100) * unyt.Msun
@@ -102,10 +103,14 @@ selection = (Mstar>masscut) & (deltaMS>dMScut) & (kappa_corot>kappacut) # my sel
 softselection = Mstar>softmasscut # for plotting purposes - only galaxies above a certain mass are plotted
 
 candidates = np.argwhere(selection)
+
+HBT_IDs = np.array(TrackIDs[candidates],dtype=int) # get rid of the cosmo_array gumf
+
+savefile = np.column_stack((candidates,HBT_IDs))
 tablename = 'tables/targets_' + str(run) + '_z' + str(z_short)
 txtname = tablename + '.txt'
-np.save(tablename, candidates) # saves target IDs to a .npy file, to be dealt with later...
-np.savetxt(txtname, candidates, fmt="%d")
+np.save(tablename, savefile) # saves target IDs (SOAP and HBT) to a .npy file, to be dealt with later...
+np.savetxt(txtname, savefile, fmt="%d")
 
 mass_lo=1e8
 mass_hi=1e12
@@ -138,11 +143,10 @@ with unyt.matplotlib_support:
     ax.set_ylabel(r'SFR [M$_\odot$/Gyr]')
     ax.set_title('z='+str(z_short))
 
-    if image=="one":
-        candidates = np.argwhere(selection) # finding the ID of our galaxies
-        if len(candidates) > 0:
-            target = candidates[0][0]
-            ax.scatter(Mstar[target],SFR[target], xunits='Msun',yunits='Msun/Gyr',c='b',marker='*',s=200)
+    candidates = np.argwhere(selection) # finding the ID of our galaxies
+    if len(candidates) > 0:
+        target = candidates[0][0]
+        ax.scatter(Mstar[target],SFR[target], xunits='Msun',yunits='Msun/Gyr',c='b',marker='*',s=200)
 
     imgname = 'plots/selection_plots/SFMS_' + str(run) + 'z' + str(z_short) + '.png'
 
@@ -225,16 +229,15 @@ with unyt.matplotlib_support:
     ax9.set_ylabel('')
     #ax9.set_ylabel(r'$M_{gas} / M_*$')
 
-    if image=="one":
-        candidates = np.argwhere(selection) # finding the ID of our galaxies
-        if len(candidates) > 0:
-            target = candidates[0][0]
-            ax1.scatter(Mstar[target],deltaMS[target], xunits='Msun',c='b',marker='*',s=200)
-            ax4.scatter(Mstar[target],kappa_corot[target], xunits='Msun',c='b',marker='*',s=200)
-            ax5.scatter(deltaMS[target],kappa_corot[target],c='b',marker='*',s=200)
-            ax7.scatter(Mstar[target],mu_molgas[target], xunits='Msun',c='b',marker='*',s=200)
-            ax8.scatter(deltaMS[target],mu_molgas[target],c='b',marker='*',s=200)
-            ax9.scatter(kappa_corot[target],mu_molgas[target],c='b',marker='*',s=200)
+    candidates = np.argwhere(selection) # finding the ID of our galaxies
+    if len(candidates) > 0:
+        target = candidates[0][0]
+        ax1.scatter(Mstar[target],deltaMS[target], xunits='Msun',c='b',marker='*',s=200)
+        ax4.scatter(Mstar[target],kappa_corot[target], xunits='Msun',c='b',marker='*',s=200)
+        ax5.scatter(deltaMS[target],kappa_corot[target],c='b',marker='*',s=200)
+        ax7.scatter(Mstar[target],mu_molgas[target], xunits='Msun',c='b',marker='*',s=200)
+        ax8.scatter(deltaMS[target],mu_molgas[target],c='b',marker='*',s=200)
+        ax9.scatter(kappa_corot[target],mu_molgas[target],c='b',marker='*',s=200)
 
     plt.subplots_adjust(wspace=0.1,hspace=0.1)
     

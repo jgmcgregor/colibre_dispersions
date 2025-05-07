@@ -19,7 +19,7 @@ source /cosma/apps/do019/dc-mcgr1/colibre_env/bin/activate
 
 for snap in "${snapArray[@]}"
 do
-    srun --nodes=1 --ntasks=1 python3 -Wignore selection.py cosma L025 m5 $snap zero &
+    srun --exclusive -n 1 -c 1 python3 -Wignore selection.py cosma L025 m5 $snap one &
 done
 wait
 
