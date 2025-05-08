@@ -301,9 +301,13 @@ if (image == "one") or (image == "all"):
         R50 = sg.halo_catalogue.exclusive_sphere_30kpc.half_mass_radius_stars.squeeze()
         R50.convert_to_physical()
 
+        R50_gas = sg.halo_catalogue.exclusive_sphere_30kpc.half_mass_radius_gas.squeeze()
+        R50_gas.convert_to_physical()
+
         def mkpatch():
-            circle = plt.Circle((0,0), R50/unyt.kpc, color='k',fill=False)
-            return circle
+            circle1 = plt.Circle((0,0), R50/unyt.kpc, color='k',fill=False)
+            circle2 = plt.Circle((0,0), R50_gas/unyt.kpc, color='w',fill=False)
+            return circle1, circle2
 
         
 
@@ -332,7 +336,7 @@ if (image == "one") or (image == "all"):
         )
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        R50circle = mkpatch()
+        circle1, circle2 = mkpatch()
         mp = ax.imshow(
             np.log10(gas_map.to_value(unyt.solMass / unyt.kpc**2).T),
             cmap="viridis",
@@ -343,14 +347,15 @@ if (image == "one") or (image == "all"):
         )
         ax.set_xlabel(f"x' [{disc_radius.units}]")
         ax.set_ylabel(f"y' [{disc_radius.units}]")
-        ax.add_patch(R50circle)
+        ax.add_patch(circle1)
+        ax.add_patch(circle2)
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas.png'
         plt.savefig(imgname, bbox_inches='tight')
 
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        R50circle = mkpatch()
+        circle1, circle2 = mkpatch()
         mp = ax.imshow(
             np.log10(star_map.to_value(unyt.solMass / unyt.kpc**2).T),
             cmap="magma",
@@ -361,7 +366,8 @@ if (image == "one") or (image == "all"):
         )
         ax.set_xlabel(f"x' [{disc_radius.units}]")
         ax.set_ylabel(f"y' [{disc_radius.units}]")
-        ax.add_patch(R50circle)
+        ax.add_patch(circle1)
+        ax.add_patch(circle2)
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star.png'
         plt.savefig(imgname, bbox_inches='tight')
@@ -405,7 +411,7 @@ if (image == "one") or (image == "all"):
         )
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        R50circle = mkpatch()
+        circle1, circle2 = mkpatch()
         mp = ax.imshow(
             np.log10(gas_map.to_value(unyt.solMass / unyt.kpc**2).T),
             cmap="viridis",
@@ -416,14 +422,15 @@ if (image == "one") or (image == "all"):
         )
         ax.set_xlabel(f"x' [{disc_radius.units}]")
         ax.set_ylabel(f"y' [{disc_radius.units}]")
-        ax.add_patch(R50circle)
+        ax.add_patch(circle1)
+        ax.add_patch(circle2)
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{gas}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'gas_fo.png'
         plt.savefig(imgname, bbox_inches='tight')
 
 
         fig,ax = plt.subplots(1,1,figsize=(8,6))
-        R50circle = mkpatch()
+        circle1, circle2 = mkpatch()
         mp = ax.imshow(
             np.log10(star_map.to_value(unyt.solMass / unyt.kpc**2).T),
             cmap="magma",
@@ -434,7 +441,8 @@ if (image == "one") or (image == "all"):
         )
         ax.set_xlabel(f"x' [{disc_radius.units}]")
         ax.set_ylabel(f"y' [{disc_radius.units}]")
-        ax.add_patch(R50circle)
+        ax.add_patch(circle1)
+        ax.add_patch(circle2)
         cb = fig.colorbar(mp, ax=ax,label=r'$\log \frac{\Sigma_{*}}{M_\odot kpc^{-2}}$')
         imgname = "plots/galplots/"+run+'_z'+str(z_short)+'_'+str(ID)+'star_fo.png'
         plt.savefig(imgname, bbox_inches='tight')
