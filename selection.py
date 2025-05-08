@@ -51,7 +51,7 @@ else:
 catalogue = sw.load(filename)
 meta = catalogue.metadata
 z=meta.redshift
-z_short = round(z,3) # used for file naming
+z_short = round(z,4) # used for file naming
 
 # uses 30kpc spheres, not entire subhalo
 Mstar = catalogue.exclusive_sphere_30kpc.stellar_mass

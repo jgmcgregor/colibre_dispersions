@@ -13,3 +13,4 @@ slurm_outputs
 slurm_errs
 *.out
 *.err
+clean.sh

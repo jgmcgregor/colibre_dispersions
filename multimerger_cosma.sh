@@ -1,5 +1,5 @@
 #!/bin/bash --login
-#SBATCH --job-name=multiselect
+#SBATCH --job-name=multimerger
 #SBATCH --partition=cosma-analyse
 #SBATCH --account=do019
 #SBATCH --ntasks=6
@@ -12,14 +12,14 @@
 echo multiselect
 echo $(date)
 
-snapArray=(0127 0092 0076 0064 0056 0048)
+snapArray=(127 92 76 64 56 48)
 #z=(0,1,2,3,4,5)
 
 source /cosma/home/do019/dc-mcgr1/colibre_env2/bin/activate
 
 for snap in "${snapArray[@]}"
 do
-    srun --exclusive -n 1 -c 1 python3 -Wignore selection.py cosma L025 m5 $snap one &
+    srun --exclusive -n 1 -c 1 python3 mergercheck.py cosma L025 m5 $snap &
 done
 wait
 
